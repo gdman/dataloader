@@ -36,6 +36,7 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.Level;
@@ -54,12 +55,16 @@ public class Installer extends Thread {
     private static Logger logger;
     private static String[] OS_SPECIFIC_DL_COMMAND = {"dataloader.bat", "dataloader_console", "dataloader.sh"};
     
+    private static Map<String, String> args;
+
     public void run() {
         System.out.println(Messages.getMessage(Installer.class, "exitMessage"));
     }
 
     public static void install(String[] args) {
         try {
+            Installer.args = AppUtil.convertCommandArgsArrayToArgMap(args);
+
             String installationDir = ".";
             installationDir = new File(Installer.class.getProtectionDomain().getCodeSource().getLocation()
                     .toURI()).getParent();
@@ -113,15 +118,15 @@ public class Installer extends Thread {
         }
     }
     
-    private static boolean promptCurrentInstallationFolder() throws IOException {
+    private static boolean promptCurrentInstallationFolder() throws IOException, Exception {
         String currentExecutionFolder = AppUtil.getDirContainingClassJar(Installer.class);
-        return loopingYesNoPrompt(Messages.getMessage(Installer.class, "promptCurrentInstallationFolder", currentExecutionFolder));
+        return loopingYesNoPrompt("--install.useCurrentFolder", Messages.getMessage(Installer.class, "promptCurrentInstallationFolder", currentExecutionFolder));
     }
         
-    private static String selectInstallationDir() throws IOException {
+    private static String selectInstallationDir() throws IOException, Exception {
         String installationDir = "";
         System.out.println(Messages.getMessage(Installer.class, "initialMessage", USERHOME + PATH_SEPARATOR));
-        String installationDirRoot = promptAndGetUserInput(Messages.getMessage(Installer.class, "promptInstallationFolder"));
+        String installationDirRoot = promptAndGetUserInput("--install.folder", Messages.getMessage(Installer.class, "promptInstallationFolder"));
         if (installationDirRoot.isBlank()) {
             installationDirRoot = "dataloader";
         }
@@ -145,7 +150,7 @@ public class Installer extends Thread {
         Path installationDirPath = Paths.get(installationDir);
         if (Files.exists(installationDirPath)) {
             final String prompt = Messages.getMessage(Installer.class, "overwriteInstallationDirPrompt", AppUtil.DATALOADER_VERSION, installationDir);
-            if (loopingYesNoPrompt(prompt)) {
+            if (loopingYesNoPrompt("--install.overrideExisting", prompt)) {
                 System.out.println(Messages.getMessage(Installer.class, "deletionInProgressMessage", AppUtil.DATALOADER_VERSION));
                 Messages.getMessage(Installer.class, "initialMessage");
                 logger.debug("going to delete " + installationDir);
@@ -185,10 +190,10 @@ public class Installer extends Thread {
         deleteFilesFromDir(installationDir, ".*.zip");
     }
     
-    private static boolean loopingYesNoPrompt(String prompt) throws IOException {
+    private static boolean loopingYesNoPrompt(String argName, String prompt) throws IOException, Exception {
         for (;;) {
             System.out.println("");
-            String input = promptAndGetUserInput(prompt);
+            String input = promptAndGetUserInput(argName, prompt);
             if (input == null || input.isBlank()) {
                 System.out.println(Messages.getMessage(Installer.class, "reprompt"));
             } else if (Messages.getMessage(Installer.class, "promptAnswerYes").toLowerCase().startsWith(input.toLowerCase())) {
@@ -201,11 +206,27 @@ public class Installer extends Thread {
         }
     }
     
-    private static String promptAndGetUserInput(String prompt) throws IOException {
+    private static String promptAndGetUserInput(String argName, String prompt) throws IOException, Exception {
         if (prompt == null || prompt.isBlank()) {
             prompt = "Provide input: ";
         }
         System.out.print(prompt);
+
+        Boolean suppressPrompts = 
+            (Installer.args.containsKey("--install.suppressPrompts") && Installer.args.get("--install.suppressPrompts").toLowerCase().startsWith("true"))
+            || Installer.args.containsValue("--install.suppressPrompts");
+
+        if (suppressPrompts && !Installer.args.containsKey(argName)) {
+            throw new Exception(Messages.getMessage(Installer.class, "missingValueForArgument", argName));
+        }
+
+        if (Installer.args.containsKey(argName)) {
+            System.out.println("");
+            System.out.println(Messages.getMessage(Installer.class, "answeredUsingArgument", Installer.args.get(argName)));
+
+            return Installer.args.get(argName);
+        }
+
         BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
         String input = "";
         // Reading data using readLine
@@ -239,12 +260,12 @@ public class Installer extends Thread {
         public void create() throws Exception;
     }
     
-    private static void createShortcut(String prompt, ShortcutCreatorInterface shortcutCreator, String success) {
+    private static void createShortcut(String prompt, String argName, ShortcutCreatorInterface shortcutCreator, String success) throws Exception {
         for (;;) {
             System.out.println("");
             String input = "";
             try {
-                input = promptAndGetUserInput(prompt);
+                input = promptAndGetUserInput(argName, prompt);
             } catch (IOException e) {
                 System.err.println(Messages.getMessage(Installer.class, "responseReadError"));
                 handleException(e, Level.ERROR);
@@ -270,18 +291,20 @@ public class Installer extends Thread {
         }
     }
     
-    private static void createDesktopShortcut(String installationDir) {
+    private static void createDesktopShortcut(String installationDir) throws Exception {
         final String PROMPT = Messages.getMessage(Installer.class, "createDesktopShortcutPrompt");
         final String SUCCESS = Messages.getMessage(Installer.class, "successCreateDesktopShortcut");
+        final String ARG_NAME = "--install.createDesktopShortcut";
+
         if (AppUtil.isRunningOnWindows()) {
-            createShortcut(PROMPT,
+            createShortcut(PROMPT, ARG_NAME, 
                     new ShortcutCreatorInterface() {
                         public void create() throws Exception {
                             createShortcutOnWindows(CREATE_DEKSTOP_SHORTCUT_ON_WINDOWS, installationDir);
                         }
             }, SUCCESS);
         } else if (AppUtil.isRunningOnMacOS()) {
-            createShortcut(PROMPT,
+            createShortcut(PROMPT, ARG_NAME, 
                     new ShortcutCreatorInterface() {
                         public void create()  throws Exception {
                                 createSymLink(USERHOME + "/Desktop/DataLoader " + AppUtil.DATALOADER_VERSION,
@@ -291,12 +314,13 @@ public class Installer extends Thread {
         }
     }
     
-    private static void createAppsDirShortcut(String installationDir) {
+    private static void createAppsDirShortcut(String installationDir) throws Exception {
         final String PROMPT =  Messages.getMessage(Installer.class, "createApplicationsDirShortcutPrompt");
         final String SUCCESS =  Messages.getMessage(Installer.class, "successCreateApplicationsDirShortcut");
+        final String ARG_NAME = "--install.createApplicationShortcut";
 
         if (AppUtil.isRunningOnMacOS()) {
-            createShortcut(PROMPT,
+            createShortcut(PROMPT, ARG_NAME, 
                     new ShortcutCreatorInterface() {
                         public void create() throws Exception {
                             createSymLink("/Applications/DataLoader " + AppUtil.DATALOADER_VERSION,
@@ -306,12 +330,13 @@ public class Installer extends Thread {
         }
     }
     
-    private static void createStartMenuShortcut(String installationDir) {
+    private static void createStartMenuShortcut(String installationDir) throws Exception {
         final String PROMPT = Messages.getMessage(Installer.class, "createStartMenuShortcutPrompt");
         final String SUCCESS = Messages.getMessage(Installer.class, "successCreateStartMenuShortcut");
+        final String ARG_NAME = "--install.createStartMenuShortcut";
 
         if (AppUtil.isRunningOnWindows()) {
-            createShortcut(PROMPT,
+            createShortcut(PROMPT, ARG_NAME, 
                     new ShortcutCreatorInterface() {
                         public void create() throws Exception {
                             String APPDATA = System.getenv("APPDATA");

@@ -11,6 +11,27 @@ Installing on Linux: Extract contents of Data Loader zip file, rename `install.c
 
     ./install.sh
 
+## Installing without prompts
+It is possible to install using command line arguments to suppress prompts for user input. This is useful for automating installation for Data Loader.
+
+| Argument                          | Description                                                                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| install.suppressPrompts           | Prevent input prompts during installation - an error will occur where the corresponding command line argument is not specified (argument has no value) |
+| install.useCurrentFolder          | Install to the current folder? [ `Yes`, `No` ]                                                                                                         |
+| install.folder                    | If install.useCurrentFolder = N, then specify folder*. Note - relative paths are relative to user home directory e.g. `/Users/username/[folder]`       |
+| install.overrideExisting          | If target installation folder exists, should installation override the contents? [ `Yes`, `No` ]                                                       |
+| install.createDesktopShortcut     | Should installation create a shortcut on the Desktop? [ `Yes`, `No` ]                                                                                  |
+| install.createApplicationShortcut | If Mac, should installation create a shortcut in Applications? [ `Yes`, `No` ]                                                                         |
+| install.createStartMenuShortcut   | If Windows, should installation create a shortcut in the Start Menu? [ `Yes`, `No` ]                                                                   |
+
+\* Limitation - Arguments cannot contain spaces and must not be wrapped in quotes.
+
+Example - On Mac install to /Users/username/dataloader, override any existing installation and create shortcuts on Desktop and in Applications:
+
+```
+./install.command --install.suppressPrompts --install.useCurrentFolder=No --install.folder=dataloader --install.overrideExisting=Yes --install.createDesktopShortcut=Yes --install.createApplicationShortcut=Yes
+```
+
 # Running Data Loader in GUI mode
 
 For running Data Loader on macOS or Windows, follow the [instructions](https://developer.salesforce.com/docs/atlas.en-us.dataLoader.meta/dataLoader/configuring_the_data_loader.htm).
