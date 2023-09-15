@@ -12,7 +12,7 @@ Installing on Linux: Extract contents of Data Loader zip file, rename `install.c
     ./install.sh
 
 ## Installing without prompts
-It is possible to install using command line arguments to suppress prompts for user input. This is useful for automating installation for Data Loader.
+It is possible to install using command line arguments to suppress prompts for user input. This is useful for automating installation of Data Loader.
 
 | Argument                          | Description                                                                                                                                            |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
